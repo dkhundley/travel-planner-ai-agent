@@ -1,5 +1,6 @@
 # Importing the necessary Python libraries
 import os
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Tuple, TextIO
@@ -14,6 +15,7 @@ from strands.telemetry import StrandsTelemetry
 TRACE_FILE = Path(__file__).resolve().parent / "agent_traces.jsonl"
 COUNT_SENTENCE = "Strands is an amazing AI framework"
 COUNT_CHAR = "a"
+SUMMARY_PROMPT = "Can you summarize our discussion so far?"
 
 
 def otel_disabled() -> bool:
@@ -169,15 +171,20 @@ def main() -> None:
     ]
 
     try:
-        for scenario in scenarios:
-            print(f"\n\n==== {scenario['label']} ====")
-            before = scenario.get("before")
-            if callable(before):
-                before()
-            for name, agent in agents.items():
-                print(f"\n{name} Response:")
-                output = agent(scenario["prompt"])
+        for name, agent in agents.items():
+            session_id = str(uuid.uuid4())
+            print(f"\n\n==== {name} | Session: {session_id} ====")
+            for scenario in scenarios:
+                before = scenario.get("before")
+                if callable(before):
+                    before()
+                print(f"\nScenario: {scenario['label']}")
+                output = agent(scenario["prompt"], session_id=session_id)
                 print(output)
+
+            print("\nSummary Prompt Response:")
+            summary_output = agent(SUMMARY_PROMPT, session_id=session_id)
+            print(summary_output)
     finally:
         log_handle.close()
         print(f"\nTrace log written to {TRACE_FILE}")
