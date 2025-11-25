@@ -4,4 +4,10 @@ version = "0.0.1"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "boto3>=1.41.3",
+    "ipykernel>=7.1.0",
+    "openai>=2.8.1",
+    "strands-agents>=1.18.0",
+    "strands-agents-tools>=0.2.16",
+]
