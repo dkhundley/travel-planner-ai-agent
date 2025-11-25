@@ -1,19 +1,63 @@
 # Importing the necessary Python libraries
 import os
 from datetime import datetime
+from pathlib import Path
+from typing import Tuple, TextIO
 from strands import Agent, tool
 from strands.models.openai import OpenAIModel
+from strands.telemetry import StrandsTelemetry
+
+
+
+## TELEMETRY SETUP
+## -------------------------------------------------------------------------------------------------
+TRACE_FILE = Path(__file__).resolve().parent / "agent_traces.jsonl"
+COUNT_SENTENCE = "Strands is an amazing AI framework"
+COUNT_CHAR = "a"
+
+
+def otel_disabled() -> bool:
+    return os.getenv("DISABLE_OTEL_EXPORT", "").strip().lower() in {"1", "true", "yes"}
+
+
+def configure_tracing(log_path: Path) -> Tuple[StrandsTelemetry, TextIO]:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    telemetry = StrandsTelemetry()
+    log_handle = log_path.open("a", encoding="utf-8")
+    telemetry.setup_console_exporter(
+        out=log_handle,
+        formatter=lambda span: span.to_json() + "\n",
+    )
+    if otel_disabled():
+        print("Remote OTLP export disabled via DISABLE_OTEL_EXPORT; writing spans to JSONL only.")
+    else:
+        try:
+            telemetry.setup_otlp_exporter()
+        except Exception as exc:
+            print(f"Failed to configure OTLP exporter: {exc}")
+    return telemetry, log_handle
+
+
+def show_actual_datetime() -> None:
+    print("Actual Date and Time:")
+    print(datetime.now().strftime("%B %d, %Y at %I:%M %p"))
+
+
+def show_actual_count() -> None:
+    print("Actual Count:")
+    print(COUNT_SENTENCE.count(COUNT_CHAR))
 
 
 
 ## MODEL SETUP
 ## -------------------------------------------------------------------------------------------------
 # Setting the Strands-OpenAI model
+model_id = 'gpt-5-nano'
 model = OpenAIModel(
     client_args = {
         'api_key': os.getenv('OPENAI_API_KEY')
     },
-    model_id = 'gpt-5-nano'
+    model_id = model_id
 )
 
 
@@ -100,50 +144,44 @@ jar_jar_agent = Agent(
 
 
 
-## AGENT TESTING
+## SCRIPT INVOCATION
 ## -------------------------------------------------------------------------------------------------
-# Testing the agents with a simple sample prompt
-simple_prompt = "What is the capital of Illinois?"
+def main() -> None:
+    _telemetry, log_handle = configure_tracing(TRACE_FILE)
+    agents = {
+        "No Tools Agent": no_tools_agent,
+        "Tools Agent": tools_agent,
+        "Jar Jar Binks Agent": jar_jar_agent,
+    }
 
-print("No Tools Agent Response:")
-response = no_tools_agent(simple_prompt)
-print("\n\nTools Agent Response:")
-response = tools_agent(simple_prompt)
-print("\n\nJar Jar Binks Agent Response:")
-response = jar_jar_agent(simple_prompt)
+    # Setting simple prompts for different scenarios
+    simple_prompt = "What is the capital of Illinois?"
+    datetime_prompt = "What is the current date and time?"
+    count_prompt = (
+        f"How many times does the letter '{COUNT_CHAR}' appear in the sentence: '{COUNT_SENTENCE}'?"
+    )
+
+    # Defining scenarios for testing different prompts
+    scenarios = [
+        {"label": "Simple prompt", "prompt": simple_prompt},
+        {"label": "Current date/time", "prompt": datetime_prompt, "before": show_actual_datetime},
+        {"label": "Character counting", "prompt": count_prompt, "before": show_actual_count},
+    ]
+
+    try:
+        for scenario in scenarios:
+            print(f"\n\n==== {scenario['label']} ====")
+            before = scenario.get("before")
+            if callable(before):
+                before()
+            for name, agent in agents.items():
+                print(f"\n{name} Response:")
+                output = agent(scenario["prompt"])
+                print(output)
+    finally:
+        log_handle.close()
+        print(f"\nTrace log written to {TRACE_FILE}")
 
 
-# # Testing the agents with a calculation prompt
-# calc_prompt = "What is 30586450123124918824 * 85748795938829102938?"
-
-# print("Actual Calculation:")
-# print(30586450123124918824 * 85748795938829102938)
-# print("\n\nNo Tools Agent Response:")
-# response = no_tools_agent(calc_prompt)
-# print("\n\nTools Agent Response:")
-# response = tools_agent(calc_prompt)
-# print("\n\nJar Jar Binks Agent Response:")
-# response = jar_jar_agent(calc_prompt)
-
-# Testing the agents with a prompt to get the current date and time
-datetime_prompt = "What is the current date and time?"
-print("Actual Date and Time:")
-print(datetime.now().strftime("%B %d, %Y at %I:%M %p"))
-print("\n\nNo Tools Agent Response:")
-response = no_tools_agent(datetime_prompt)
-print("\n\nTools Agent Response:")
-response = tools_agent(datetime_prompt)
-print("\n\nJar Jar Binks Agent Response:")
-response = jar_jar_agent(datetime_prompt)
-
-
-# Testing the character counting tool
-count_prompt = "How many times does the letter 'a' appear in the sentence: 'Strands is an amazing AI framework'?"
-print("Actual Count:")
-print('Strands is an amazing AI framework'.count('a'))
-print("\n\nNo Tools Agent Response:")
-response = no_tools_agent(count_prompt)
-print("\n\nTools Agent Response:")
-response = tools_agent(count_prompt)
-print("\n\nJar Jar Binks Agent Response:")
-response = jar_jar_agent(count_prompt)
+if __name__ == "__main__":
+    main()

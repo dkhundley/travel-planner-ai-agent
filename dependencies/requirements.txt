@@ -10,3 +10,5 @@ numpy
 pandas
 polars
 seaborn
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
