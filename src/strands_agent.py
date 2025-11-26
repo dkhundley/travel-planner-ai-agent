@@ -10,20 +10,31 @@ from strands.telemetry import StrandsTelemetry
 
 
 
-## TELEMETRY SETUP
+## SAMPLE SETUP
 ## -------------------------------------------------------------------------------------------------
-TRACE_FILE = Path(__file__).resolve().parent / "agent_traces.jsonl"
+TRACE_FILE = "agent_traces.jsonl"
 COUNT_SENTENCE = "Strands is an amazing AI framework"
 COUNT_CHAR = "a"
 SUMMARY_PROMPT = "Can you summarize our discussion so far?"
 
+def show_actual_datetime() -> None:
+    print("Actual Date and Time:")
+    print(datetime.now().strftime("%B %d, %Y at %I:%M %p"))
 
+
+def show_actual_count() -> None:
+    print("Actual Count:")
+    print(COUNT_SENTENCE.count(COUNT_CHAR))
+
+
+
+## TELEMETRY SETUP
+## -------------------------------------------------------------------------------------------------
 def otel_disabled() -> bool:
     return os.getenv("DISABLE_OTEL_EXPORT", "").strip().lower() in {"1", "true", "yes"}
 
 
 def configure_tracing(log_path: Path) -> Tuple[StrandsTelemetry, TextIO]:
-    log_path.parent.mkdir(parents=True, exist_ok=True)
     telemetry = StrandsTelemetry()
     log_handle = log_path.open("a", encoding="utf-8")
     telemetry.setup_console_exporter(
@@ -38,16 +49,6 @@ def configure_tracing(log_path: Path) -> Tuple[StrandsTelemetry, TextIO]:
         except Exception as exc:
             print(f"Failed to configure OTLP exporter: {exc}")
     return telemetry, log_handle
-
-
-def show_actual_datetime() -> None:
-    print("Actual Date and Time:")
-    print(datetime.now().strftime("%B %d, %Y at %I:%M %p"))
-
-
-def show_actual_count() -> None:
-    print("Actual Count:")
-    print(COUNT_SENTENCE.count(COUNT_CHAR))
 
 
 
